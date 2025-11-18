@@ -55,7 +55,14 @@ export default function CatalogScreen() {
     const unsubscribe = plansRepo.subscribeToChanges(() => {
       load();
     });
-    return unsubscribe;
+    
+    // Convertimos un cleanup async en un cleanup sync válido
+    return () => {
+      if (typeof unsubscribe === "function") {
+        // NO await, NO async
+        unsubscribe();
+      }
+    };
   }, []);
 
   function handlePrimaryAction() {

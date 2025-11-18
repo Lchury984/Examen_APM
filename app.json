@@ -15,8 +15,12 @@
       "router": {
         "origin": false
       },
-      "supabaseUrl": "${EXPO_PUBLIC_SUPABASE_URL}",
-      "supabaseAnonKey": "${EXPO_PUBLIC_SUPABASE_ANON_KEY}"
+      "supabaseUrl": "https://mbttsrvbrwsmbcknuvfc.supabase.co",
+      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1idHRzcnZicndzbWJja251dmZjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0MTA1MjcsImV4cCI6MjA3ODk4NjUyN30.HQVMQLXxbjsx9jjZCqBGSZl6iO2ivdjSxcAahG4UbK0"
+    },
+    "web": {
+      "bundler": "metro",
+      "jsEngine": "jsc"
     }
   }
 }
