@@ -10,6 +10,7 @@ interface Profile {
   user_id: string;
   rol: UserRole;
   nombre?: string | null;
+  telefono?: string | null;
 }
 
 interface AuthContextValue {
@@ -18,9 +19,10 @@ interface AuthContextValue {
   profile: Profile | null;
   loading: boolean;
   signIn(email: string, password: string): Promise<{ success: boolean; error?: string }>;
-  signUp(email: string, password: string, nombre?: string): Promise<{ success: boolean; error?: string }>;
+  signUp(email: string, password: string, nombre?: string, telefono?: string, rol?: UserRole): Promise<{ success: boolean; error?: string }>;
   signOut(): Promise<void>;
   requestPasswordReset(email: string): Promise<{ success: boolean; error?: string }>;
+  updateProfile(updates: { nombre?: string; telefono?: string }): Promise<{ success: boolean; error?: string }>;
   refreshProfile(): Promise<void>;
 }
 
@@ -29,7 +31,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 async function fetchProfile(userId: string): Promise<Profile | null> {
   const { data, error } = await supabase
     .from('perfiles')
-    .select('id,user_id,rol,nombre')
+    .select('id,user_id,rol,nombre,telefono')
     .eq('user_id', userId)
     .maybeSingle();
 
@@ -39,16 +41,16 @@ async function fetchProfile(userId: string): Promise<Profile | null> {
   }
 
   if (!data) {
-    // Ensure default profile is created for backwards compatibility
     const defaultProfile: Omit<Profile, 'id'> = {
       user_id: userId,
       rol: 'usuario_registrado',
       nombre: null,
+      telefono: null,
     };
     const { data: inserted, error: insertError } = await supabase
       .from('perfiles')
       .insert(defaultProfile)
-      .select('id,user_id,rol,nombre')
+      .select('id,user_id,rol,nombre,telefono')
       .single();
 
     if (insertError) {
@@ -109,8 +111,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: true } as const;
   }, [handleSessionChange]);
 
-  const signUp = useCallback(async (email: string, password: string, nombre?: string) => {
-    const result = await authService.signUp(email, password, nombre);
+  const signUp = useCallback(async (
+    email: string, 
+    password: string, 
+    nombre?: string,
+    telefono?: string,
+    rol?: UserRole
+  ) => {
+    const result = await authService.signUp(email, password, nombre, telefono, rol);
     if (!result.success) return result;
     await handleSessionChange(result.userSession ?? null);
     return { success: true } as const;
@@ -131,6 +139,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: true } as const;
   }, []);
 
+  const updateProfile = useCallback(async (updates: { nombre?: string; telefono?: string }) => {
+    if (!session?.user?.id) {
+      return { success: false, error: 'No hay sesión activa' };
+    }
+    
+    try {
+      await authService.updateProfile(session.user.id, updates);
+      await refreshProfile();
+      return { success: true } as const;
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }, [session?.user?.id]);
+
   const refreshProfile = useCallback(async () => {
     if (session?.user?.id) {
       const nextProfile = await fetchProfile(session.user.id);
@@ -147,8 +169,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signUp,
     signOut,
     requestPasswordReset,
+    updateProfile,
     refreshProfile,
-  }), [session, profile, loading, signIn, signUp, signOut, requestPasswordReset, refreshProfile]);
+  }), [session, profile, loading, signIn, signUp, signOut, requestPasswordReset, updateProfile, refreshProfile]);
 
   return (
     <AuthContext.Provider value={value}>
@@ -162,4 +185,3 @@ export function useAuth() {
   if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 }
-

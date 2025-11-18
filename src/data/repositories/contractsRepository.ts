@@ -6,9 +6,15 @@ export type Contract = {
   plan_id: string;
   estado: 'pendiente' | 'aprobado' | 'rechazado' | 'en_proceso';
   created_at: string;
+  room_id?: string;
   planes_moviles?: {
     nombre: string;
     precio: number;
+  };
+  user_profile?: {
+    nombre: string | null;
+    telefono: string | null;
+    email?: string;
   };
 };
 
@@ -20,7 +26,7 @@ export class ContractsRepository {
         plan_id: planId,
         user_id: userId,
       })
-      .select('*, planes_moviles(nombre,precio)')
+      .select('*')
       .single();
 
     if (error) throw error;
@@ -30,7 +36,10 @@ export class ContractsRepository {
   async getByUser(userId: string) {
     const { data, error } = await supabase
       .from('contrataciones')
-      .select('*, planes_moviles(nombre,precio)')
+      .select(`
+        *,
+        planes_moviles(nombre, precio)
+      `)
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
@@ -39,13 +48,45 @@ export class ContractsRepository {
   }
 
   async getPendings() {
-    const { data, error } = await supabase
+    // Primero obtenemos las contrataciones
+    const { data: contrataciones, error } = await supabase
       .from('contrataciones')
-      .select('*, planes_moviles(nombre,precio)')
+      .select(`
+        *,
+        planes_moviles(nombre, precio)
+      `)
       .eq('estado', 'pendiente')
       .order('created_at', { ascending: true });
+
     if (error) throw error;
-    return data as Contract[];
+    if (!contrataciones) return [];
+
+    // Luego obtenemos los perfiles de los usuarios
+    const userIds = contrataciones.map(c => c.user_id);
+    const { data: perfiles } = await supabase
+      .from('perfiles')
+      .select('user_id, nombre, telefono')
+      .in('user_id', userIds);
+
+    // Y los emails de auth.users
+    const { data: { users } } = await supabase.auth.admin.listUsers();
+    
+    // Combinamos la información
+    const result = contrataciones.map(contratacion => {
+      const perfil = perfiles?.find(p => p.user_id === contratacion.user_id);
+      const user = users?.find(u => u.id === contratacion.user_id);
+      
+      return {
+        ...contratacion,
+        user_profile: {
+          nombre: perfil?.nombre ?? null,
+          telefono: perfil?.telefono ?? null,
+          email: user?.email ?? 'Sin email',
+        }
+      };
+    });
+
+    return result as Contract[];
   }
 
   async updateStatus(id: string, estado: Contract['estado']) {
@@ -59,5 +100,18 @@ export class ContractsRepository {
     if (error) throw error;
     return data as Contract;
   }
-}
 
+  async getById(id: string) {
+    const { data, error } = await supabase
+      .from('contrataciones')
+      .select(`
+        *,
+        planes_moviles(nombre, precio)
+      `)
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+    return data as Contract;
+  }
+}

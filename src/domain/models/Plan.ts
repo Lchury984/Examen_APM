@@ -15,4 +15,5 @@ export interface Plan {
   whatsapp?: string | null;
   llamadas_internacionales?: string | null;
   roaming?: string | null;
+  promocion?: string | null; // NUEVO CAMPO
 }

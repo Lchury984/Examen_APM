@@ -12,16 +12,9 @@ const defaultState = {
   nombre: '',
   precio: '',
   descripcion: '',
-  segmento: '',
-  publico_objetivo: '',
   datos_moviles: '',
   minutos_voz: '',
-  sms: '',
-  velocidad: '',
-  redes_sociales: '',
-  whatsapp: '',
-  llamadas_internacionales: '',
-  roaming: '',
+  promocion: '',
   activo: true,
 };
 
@@ -45,16 +38,9 @@ export default function PlanFormScreen() {
             nombre: data.nombre,
             precio: data.precio.toString(),
             descripcion: data.descripcion ?? '',
-            segmento: data.segmento ?? '',
-            publico_objetivo: data.publico_objetivo ?? '',
             datos_moviles: data.datos_moviles ?? '',
             minutos_voz: data.minutos_voz ?? '',
-            sms: data.sms ?? '',
-            velocidad: data.velocidad ?? '',
-            redes_sociales: data.redes_sociales ?? '',
-            whatsapp: data.whatsapp ?? '',
-            llamadas_internacionales: data.llamadas_internacionales ?? '',
-            roaming: data.roaming ?? '',
+            promocion: data.promocion ?? '',
             activo: data.activo,
           });
         })
@@ -80,6 +66,11 @@ export default function PlanFormScreen() {
   }
 
   async function handleSubmit() {
+    if (!form.nombre.trim()) {
+      Alert.alert('Validación', 'El nombre del plan es obligatorio');
+      return;
+    }
+
     const precioNumber = parseFloat(form.precio);
     if (Number.isNaN(precioNumber)) {
       Alert.alert('Validación', 'Ingresa un precio válido');
@@ -92,16 +83,9 @@ export default function PlanFormScreen() {
       nombre: form.nombre.trim(),
       precio: precioNumber,
       descripcion: normalize(form.descripcion),
-      segmento: normalize(form.segmento),
-      publico_objetivo: normalize(form.publico_objetivo),
       datos_moviles: normalize(form.datos_moviles),
       minutos_voz: normalize(form.minutos_voz),
-      sms: normalize(form.sms),
-      velocidad: normalize(form.velocidad),
-      redes_sociales: normalize(form.redes_sociales),
-      whatsapp: normalize(form.whatsapp),
-      llamadas_internacionales: normalize(form.llamadas_internacionales),
-      roaming: normalize(form.roaming),
+      promocion: normalize(form.promocion),
       activo: form.activo,
       imagenUri: imageUri ?? undefined,
     };
@@ -112,6 +96,7 @@ export default function PlanFormScreen() {
       } else {
         await repo.create(payload as any);
       }
+      Alert.alert('Éxito', isEdit ? 'Plan actualizado' : 'Plan creado');
       router.back();
     } catch (error: any) {
       Alert.alert('Error', error.message);
@@ -120,56 +105,94 @@ export default function PlanFormScreen() {
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>{isEdit ? 'Editar plan' : 'Crear plan'}</Text>
-      <TextInput style={styles.input} placeholder="Nombre" value={form.nombre} onChangeText={(text) => handleChange('nombre', text)} />
-      <TextInput style={styles.input} placeholder="Precio" keyboardType="decimal-pad" value={form.precio} onChangeText={(text) => handleChange('precio', text)} />
+      <Text style={styles.title}>{isEdit ? 'Editar Plan' : 'Crear Nuevo Plan'}</Text>
+      
+      <Text style={styles.sectionTitle}>Información Básica</Text>
+      
+      <Text style={styles.label}>Nombre del Plan *</Text>
+      <TextInput 
+        style={styles.input} 
+        placeholder="Ej: Plan Smart 5GB" 
+        value={form.nombre} 
+        onChangeText={(text) => handleChange('nombre', text)} 
+      />
+
+      <Text style={styles.label}>Precio Mensual * (USD)</Text>
+      <TextInput 
+        style={styles.input} 
+        placeholder="15.99" 
+        keyboardType="decimal-pad" 
+        value={form.precio} 
+        onChangeText={(text) => handleChange('precio', text)} 
+      />
+
+      <Text style={styles.label}>Gigas de Datos *</Text>
+      <TextInput 
+        style={styles.input} 
+        placeholder="Ej: 5GB" 
+        value={form.datos_moviles} 
+        onChangeText={(text) => handleChange('datos_moviles', text)} 
+      />
+
+      <Text style={styles.label}>Minutos en Llamadas *</Text>
+      <TextInput 
+        style={styles.input} 
+        placeholder="Ej: 100 minutos" 
+        value={form.minutos_voz} 
+        onChangeText={(text) => handleChange('minutos_voz', text)} 
+      />
+
+      <Text style={styles.label}>Descripción</Text>
       <TextInput
         style={[styles.input, styles.multiline]}
-        placeholder="Descripción"
+        placeholder="Describe las características del plan..."
         value={form.descripcion}
         onChangeText={(text) => handleChange('descripcion', text)}
         multiline
+        numberOfLines={4}
       />
-      <Pressable style={[styles.toggle, form.activo ? styles.toggleOn : styles.toggleOff]} onPress={() => setForm((prev) => ({ ...prev, activo: !prev.activo }))}>
-        <Text style={styles.toggleText}>Plan activo: {form.activo ? 'Sí' : 'No'}</Text>
+
+      <Text style={styles.label}>Promoción (Opcional)</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Ej: ¡50% de descuento por 3 meses!"
+        value={form.promocion}
+        onChangeText={(text) => handleChange('promocion', text)}
+      />
+
+      <Pressable 
+        style={[styles.toggle, form.activo ? styles.toggleOn : styles.toggleOff]} 
+        onPress={() => setForm((prev) => ({ ...prev, activo: !prev.activo }))}
+      >
+        <Text style={styles.toggleText}>
+          Plan {form.activo ? 'ACTIVO' : 'INACTIVO'}
+        </Text>
       </Pressable>
-      <TextInput style={styles.input} placeholder="Segmento" value={form.segmento} onChangeText={(text) => handleChange('segmento', text)} />
-      <TextInput
-        style={styles.input}
-        placeholder="Público objetivo"
-        value={form.publico_objetivo}
-        onChangeText={(text) => handleChange('publico_objetivo', text)}
-      />
-      <TextInput style={styles.input} placeholder="Datos móviles" value={form.datos_moviles} onChangeText={(text) => handleChange('datos_moviles', text)} />
-      <TextInput style={styles.input} placeholder="Minutos voz" value={form.minutos_voz} onChangeText={(text) => handleChange('minutos_voz', text)} />
-      <TextInput style={styles.input} placeholder="SMS" value={form.sms} onChangeText={(text) => handleChange('sms', text)} />
-      <TextInput style={styles.input} placeholder="Velocidad" value={form.velocidad} onChangeText={(text) => handleChange('velocidad', text)} />
-      <TextInput
-        style={styles.input}
-        placeholder="Redes sociales"
-        value={form.redes_sociales}
-        onChangeText={(text) => handleChange('redes_sociales', text)}
-      />
-      <TextInput style={styles.input} placeholder="WhatsApp" value={form.whatsapp} onChangeText={(text) => handleChange('whatsapp', text)} />
-      <TextInput
-        style={styles.input}
-        placeholder="Llamadas Internacionales"
-        value={form.llamadas_internacionales}
-        onChangeText={(text) => handleChange('llamadas_internacionales', text)}
-      />
-      <TextInput style={styles.input} placeholder="Roaming" value={form.roaming} onChangeText={(text) => handleChange('roaming', text)} />
+
+      <Text style={styles.sectionTitle}>Imagen del Plan</Text>
 
       <Pressable style={styles.imageButton} onPress={handlePickImage}>
-        <Text style={styles.imageButtonText}>{imageUri ? 'Cambiar imagen' : 'Seleccionar imagen'}</Text>
+        <Text style={styles.imageButtonText}>
+          {imageUri ? '✓ Cambiar imagen' : '📷 Seleccionar imagen'}
+        </Text>
       </Pressable>
-      {imageUri ? <Image source={{ uri: imageUri }} style={styles.preview} /> : null}
-      {!imageUri && existingImage ? <Image source={{ uri: existingImage }} style={styles.preview} /> : null}
+
+      {imageUri ? (
+        <Image source={{ uri: imageUri }} style={styles.preview} />
+      ) : existingImage ? (
+        <Image source={{ uri: existingImage }} style={styles.preview} />
+      ) : null}
+
       {!imageUri && plan?.imagen_path ? (
-        <Text style={styles.helper}>Se conservará la imagen actual si no seleccionas una nueva.</Text>
+        <Text style={styles.helper}>
+          Se conservará la imagen actual si no seleccionas una nueva
+        </Text>
       ) : null}
 
       <Pressable style={styles.submitButton} onPress={handleSubmit}>
-        <Text style={styles.submitText}>{isEdit ? 'Guardar cambios' : 'Crear plan'}</Text>
+        <Text style={styles.submitText}>
+          {isEdit ? '💾 Guardar Cambios' : '✨ Crear Plan'}
+        </Text>
       </Pressable>
     </ScrollView>
   );
@@ -182,35 +205,55 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   title: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '700',
-    marginBottom: 16,
+    marginBottom: 20,
+    marginTop: 10,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 16,
+    marginBottom: 12,
+    color: '#374151',
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 6,
+    color: '#4B5563',
   },
   input: {
     borderWidth: 1,
     borderColor: '#E5E7EB',
     padding: 12,
     borderRadius: 8,
-    marginBottom: 12,
+    marginBottom: 16,
+    fontSize: 16,
+    backgroundColor: '#F9FAFB',
   },
   multiline: {
-    minHeight: 80,
+    minHeight: 100,
     textAlignVertical: 'top',
   },
   imageButton: {
-    backgroundColor: '#E0E7FF',
-    padding: 12,
+    backgroundColor: '#EFF6FF',
+    padding: 14,
     borderRadius: 8,
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: '#BFDBFE',
+    borderStyle: 'dashed',
   },
   imageButtonText: {
     color: '#1E40AF',
     fontWeight: '600',
+    fontSize: 16,
   },
   preview: {
     width: '100%',
-    height: 180,
+    height: 200,
     borderRadius: 12,
     marginBottom: 12,
   },
@@ -218,33 +261,44 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
     marginBottom: 12,
+    fontStyle: 'italic',
   },
   toggle: {
-    padding: 12,
+    padding: 14,
     borderRadius: 8,
-    marginBottom: 12,
+    marginBottom: 16,
     alignItems: 'center',
   },
   toggleOn: {
-    backgroundColor: '#DCFCE7',
+    backgroundColor: '#D1FAE5',
+    borderWidth: 2,
+    borderColor: '#10B981',
   },
   toggleOff: {
     backgroundColor: '#FEE2E2',
+    borderWidth: 2,
+    borderColor: '#EF4444',
   },
   toggleText: {
-    fontWeight: '600',
+    fontWeight: '700',
+    fontSize: 16,
   },
   submitButton: {
     backgroundColor: '#2563EB',
-    padding: 14,
+    padding: 16,
     borderRadius: 10,
     alignItems: 'center',
+    marginTop: 10,
     marginBottom: 40,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   submitText: {
     color: '#fff',
-    fontWeight: '600',
-    fontSize: 16,
+    fontWeight: '700',
+    fontSize: 18,
   },
 });
-

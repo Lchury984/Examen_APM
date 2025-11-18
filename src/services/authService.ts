@@ -7,7 +7,14 @@ type AuthResponse = {
   userSession?: Session | null;
 };
 
-async function ensureProfile(userId: string, nombre?: string | null) {
+type UserRole = 'asesor_comercial' | 'usuario_registrado';
+
+async function ensureProfile(
+  userId: string, 
+  nombre?: string | null, 
+  telefono?: string | null,
+  rol?: UserRole
+) {
   const { data, error } = await supabase
     .from('perfiles')
     .select('id')
@@ -21,15 +28,22 @@ async function ensureProfile(userId: string, nombre?: string | null) {
     .from('perfiles')
     .insert({
       user_id: userId,
-      rol: 'usuario_registrado',
+      rol: rol ?? 'usuario_registrado',
       nombre: nombre ?? null,
+      telefono: telefono ?? null,
     });
 
   if (insertError) throw insertError;
 }
 
 export const authService = {
-  async signUp(email: string, password: string, nombre?: string): Promise<AuthResponse> {
+  async signUp(
+    email: string, 
+    password: string, 
+    nombre?: string,
+    telefono?: string,
+    rol?: UserRole
+  ): Promise<AuthResponse> {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -46,7 +60,7 @@ export const authService = {
 
     if (data.user?.id) {
       try {
-        await ensureProfile(data.user.id, nombre);
+        await ensureProfile(data.user.id, nombre, telefono, rol);
       } catch (profileError: any) {
         return { success: false, error: profileError.message };
       }
@@ -65,6 +79,15 @@ export const authService = {
 
   async signOut() {
     await supabase.auth.signOut();
+  },
+
+  async updateProfile(userId: string, updates: { nombre?: string; telefono?: string }) {
+    const { error } = await supabase
+      .from('perfiles')
+      .update(updates)
+      .eq('user_id', userId);
+
+    if (error) throw error;
   },
 };
 

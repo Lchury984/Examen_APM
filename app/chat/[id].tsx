@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, TextInput, Button, StyleSheet } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, FlatList, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../src/services/supabase';
 import { useAuth } from '../../src/context/AuthContext';
@@ -9,105 +9,259 @@ type Message = {
   content: string;
   created_at: string;
   sender_rol: 'asesor_comercial' | 'usuario_registrado';
+  user_id: string;
 };
 
 export default function ChatRoom() {
   const params = useLocalSearchParams();
-  const roomId = params.id as string | undefined;
+  const contratacionId = params.id as string;
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const { user, profile } = useAuth();
+  const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
     let mounted = true;
+
     async function load() {
       const { data } = await supabase
         .from('mensajes_chat')
         .select('*')
-        .eq('room_id', roomId)
+        .eq('contratacion_id', contratacionId)
         .order('created_at', { ascending: true });
-      if (mounted) setMessages((data as Message[]) || []);
+      
+      if (mounted && data) {
+        setMessages(data as Message[]);
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      }
     }
-    if (roomId) load();
 
-    if (!roomId) return () => undefined;
+    if (contratacionId) load();
 
     const subscription = supabase
-      .channel(`room_${roomId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensajes_chat', filter: `room_id=eq.${roomId}` }, (payload) => {
-        setMessages((prev) => [...prev, payload.new as Message]);
-      })
+      .channel(`chat_${contratacionId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'mensajes_chat',
+          filter: `contratacion_id=eq.${contratacionId}`,
+        },
+        (payload) => {
+          setMessages((prev) => [...prev, payload.new as Message]);
+          setTimeout(() => {
+            flatListRef.current?.scrollToEnd({ animated: true });
+          }, 100);
+        }
+      )
       .subscribe();
 
     return () => {
       mounted = false;
       supabase.removeChannel(subscription);
     };
-  }, [roomId]);
+  }, [contratacionId]);
 
   async function send() {
-    if (!text || !user || !profile?.rol || !roomId) return;
-    await supabase
-      .from('mensajes_chat')
-      .insert({ room_id: roomId, user_id: user.id, sender_rol: profile.rol, content: text });
+    if (!text.trim() || !user || !profile?.rol || !contratacionId) return;
+
+    const messageToSend = text.trim();
     setText('');
+
+    await supabase.from('mensajes_chat').insert({
+      contratacion_id: contratacionId,
+      user_id: user.id,
+      sender_rol: profile.rol,
+      content: messageToSend,
+    });
   }
 
-  if (!roomId) {
+  if (!contratacionId) {
     return (
       <View style={styles.container}>
-        <Text>No se encontró la sala de chat.</Text>
+        <Text style={styles.errorText}>No se encontró la conversación</Text>
       </View>
     );
   }
 
+  const isAsesor = profile?.rol === 'asesor_comercial';
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Chat {roomId}</Text>
+    <KeyboardAvoidingView 
+      style={styles.container} 
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={90}
+    >
+      <View style={styles.header}>
+        <Text style={styles.title}>
+          {isAsesor ? '💬 Conversación con Cliente' : '💬 Chat con Asesor'}
+        </Text>
+        <Text style={styles.subtitle}>Contratación #{contratacionId.slice(0, 8)}</Text>
+      </View>
+
       <FlatList
+        ref={flatListRef}
         data={messages}
         keyExtractor={(m) => m.id}
         contentContainerStyle={styles.list}
-        renderItem={({ item }) => (
-          <View style={[styles.message, item.sender_rol === 'usuario_registrado' ? styles.userMessage : styles.asesorMessage]}>
-            <Text style={styles.sender}>{item.sender_rol === 'usuario_registrado' ? 'Tú' : 'Asesor'}</Text>
-            <Text>{item.content}</Text>
-          </View>
-        )}
+        renderItem={({ item }) => {
+          const isOwn = item.user_id === user?.id;
+          return (
+            <View style={[styles.messageContainer, isOwn ? styles.ownMessage : styles.otherMessage]}>
+              <View style={[styles.bubble, isOwn ? styles.ownBubble : styles.otherBubble]}>
+                <Text style={styles.sender}>
+                  {isOwn ? 'Tú' : item.sender_rol === 'asesor_comercial' ? 'Asesor' : 'Cliente'}
+                </Text>
+                <Text style={[styles.messageText, isOwn && styles.ownMessageText]}>
+                  {item.content}
+                </Text>
+                <Text style={[styles.time, isOwn && styles.ownTime]}>
+                  {new Date(item.created_at).toLocaleTimeString([], { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  })}
+                </Text>
+              </View>
+            </View>
+          );
+        }}
+        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
       />
-      <TextInput value={text} onChangeText={setText} placeholder="Escribe..." style={styles.input} />
-      <Button title="Enviar" onPress={send} />
-    </View>
+
+      <View style={styles.inputContainer}>
+        <TextInput
+          value={text}
+          onChangeText={setText}
+          placeholder="Escribe tu mensaje..."
+          style={styles.input}
+          multiline
+          maxLength={500}
+        />
+        <Pressable 
+          style={[styles.sendButton, !text.trim() && styles.sendButtonDisabled]} 
+          onPress={send}
+          disabled={!text.trim()}
+        >
+          <Text style={styles.sendButtonText}>Enviar</Text>
+        </Pressable>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#fff' },
-  title: { fontSize: 18, fontWeight: '600', marginBottom: 12 },
-  list: { flexGrow: 1, marginBottom: 12 },
-  message: {
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 8,
+  container: { 
+    flex: 1, 
+    backgroundColor: '#F9FAFB' 
   },
-  userMessage: {
-    backgroundColor: '#DBEAFE',
-    alignSelf: 'flex-end',
+  header: {
+    padding: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
   },
-  asesorMessage: {
-    backgroundColor: '#F3F4F6',
-    alignSelf: 'flex-start',
+  title: { 
+    fontSize: 18, 
+    fontWeight: '700',
+    color: '#111827',
   },
-  sender: {
+  subtitle: {
     fontSize: 12,
     color: '#6B7280',
-    marginBottom: 4,
+    marginTop: 2,
   },
-  input: {
+  errorText: {
+    textAlign: 'center',
+    marginTop: 50,
+    color: '#EF4444',
+    fontSize: 16,
+  },
+  list: { 
+    flexGrow: 1, 
+    padding: 16,
+  },
+  messageContainer: {
+    marginBottom: 12,
+  },
+  ownMessage: {
+    alignItems: 'flex-end',
+  },
+  otherMessage: {
+    alignItems: 'flex-start',
+  },
+  bubble: {
+    maxWidth: '80%',
+    padding: 12,
+    borderRadius: 16,
+  },
+  ownBubble: {
+    backgroundColor: '#2563EB',
+    borderBottomRightRadius: 4,
+  },
+  otherBubble: {
+    backgroundColor: '#fff',
+    borderBottomLeftRadius: 4,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    borderRadius: 8,
+  },
+  sender: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginBottom: 4,
+    color: '#6B7280',
+  },
+  messageText: {
+    fontSize: 15,
+    color: '#111827',
+    lineHeight: 20,
+  },
+  ownMessageText: {
+    color: '#fff',
+  },
+  time: {
+    fontSize: 10,
+    color: '#9CA3AF',
+    marginTop: 4,
+  },
+  ownTime: {
+    color: '#DBEAFE',
+  },
+  inputContainer: {
+    flexDirection: 'row',
     padding: 12,
-    marginBottom: 8,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    gap: 8,
+  },
+  input: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 15,
+    maxHeight: 100,
+    backgroundColor: '#F9FAFB',
+  },
+  sendButton: {
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#D1D5DB',
+  },
+  sendButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 15,
   },
 });
